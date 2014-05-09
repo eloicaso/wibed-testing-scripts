@@ -1,0 +1,67 @@
+#!/bin/bash
+
+
+IEXIST="/tmp/already_here"
+ID=${uname -n}
+IMG="Wibed.bin"
+FIMG="/tmp/Wibed.bin"
+FSSH="/tmp/ssh-all"
+FMYSELF="/tmp/spread-the-word"
+
+if [ ! -f $IEXIST ] ; then
+
+        echo "Spreading the wibed image from the $ID node."
+
+        if [ -f $FIMG ] ; then
+                if [ -f $FSSH  ] ; then
+                        echo "Script ssh-all: OK"
+                else
+                        echo "Script ssh-all: MISSING"
+                        echo "Trying to download..."
+                        DOWN=${wget http://wibed.confine-project.eu/wibed/last_trunk/ar71xx/ssh-all}
+                        if [ $DOWN -eq 1  ] ; then
+                                echo "We can't download the ssh-all script. Exiting..."
+                                exit(1)
+                        fi
+                fi
+                echo "All checks OK. Starting to spread the word"
+
+                echo "Discovering nodes..."
+                ping6 ff02::2%br-mgmt -c 5 -i 1 -s 16 | grep "^24" > $TMP.nodes.tmp
+                cat $TMP.nodes.tmp  | awk '{print $4}' | sed s/":$"//g | sort -u > $TMP.nodes
+                echo "-------------------------"
+                cat $TMP.nodes
+                echo "-------------------------"
+
+                for IP in $(cat $TMP.nodes)
+                        ${find $IEXIST}
+                        if [ $? -eq 0 ] ; then
+                                echo "This node has the word"
+                        else
+                                scp -r $FIMG [$IP%br-mgmt]:$FIMG
+                                if [ $? -eq 1 ] ; then
+                                        echo "Node $IP fails"
+                                else
+                                        scp -r $FSSH [$IP%br-mgmt]:$FSSH
+                                        if [ $? -eq 1 ] ; then
+                                                echo "Node $IP fails"
+                                        else
+                                                scp -r $FMYSELF [$IP%br-mgmt]:$FMYSELF
+                                                if [ $? -eq 1 ] ; then
+                                                         echo "Node $IP fails"
+                                                else
+                                                        "ALL IS CORRECT. SPREAD THE WORD!"
+                                                        ssh -ft $IP%br-mgmt ".$FMYSELF"
+                                                fi
+                                        fi
+                                fi
+
+
+        else
+                echo "ERROR in $ID node!"
+                echo "Wibed image not present. Contact your admin."
+                exit(1)
+        fi
+else
+        echo "This node already has the word"
+fi
